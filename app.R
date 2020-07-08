@@ -1,15 +1,8 @@
-# library(ggplot2)
-# library(Cairo)   # For nicer ggplot2 output when deployed on Linux
-# library(shiny)
-# We'll use a subset of the mtcars data set, with fewer columns
-# so that it prints nicely
-# mtcars2 <- mtcars[, c("mpg", "cyl", "disp", "hp", "wt", "am", "gear")]
-
 saving_actions <- function(which, input){
   shinyalert("Okey!", paste0("New ", which, " saved."), type = "success")
   saveRDS(list(xmin = input$plot1_brush$xmin, xmax = input$plot1_brush$xmax,
                ymin = input$plot1_brush$ymin, ymax = input$plot1_brush$ymax),
-          file=paste0(which,"_limits.RDS"))
+          file=paste0("app_data/", which,"_limits.RDS"))
 }
 
 ui <- fluidPage(
@@ -61,5 +54,3 @@ server <- function(input, output, session) {
   })
 
 }
-
-# shinyApp(ui, server)
