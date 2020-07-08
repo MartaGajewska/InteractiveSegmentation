@@ -37,8 +37,8 @@ conv_image_to_df <- function(image){
 calc_params <- function(image_df, limits){
 
   selected_pixels <- image_df %>%
-    filter(between(row, limits$xmin, limits$xmax) &
-             between(column, limits$ymin, limits$ymax)) %>%
+    filter(between(column, limits$xmin, limits$xmax) &
+             between(row, limits$ymin, limits$ymax)) %>%
     pull(node_value)
 
   fit <- MASS::fitdistr(selected_pixels, "normal")
@@ -90,11 +90,11 @@ calc_node_values <- function(image_df, limits_object, limits_background){
     mutate(dnorm_object = dnorm(node_value, object_params[['mean']], object_params[['sd']]),
            dnorm_background = dnorm(node_value, background_params[['mean']], background_params[['sd']])) %>%
     mutate(is_background =
-             between(row, limits_background$xmin, limits_background$xmax) &
-             between(column, limits_background$ymin, limits_background$ymax)) %>%
+             between(column, limits_background$xmin, limits_background$xmax) &
+             between(row, limits_background$ymin, limits_background$ymax)) %>%
     mutate(is_object =
-             between(row, limits_object$xmin, limits_object$xmax) &
-             between(column, limits_object$ymin, limits_object$ymax))
+             between(column, limits_object$xmin, limits_object$xmax) &
+             between(row, limits_object$ymin, limits_object$ymax))
 
   ## Source (object) - pixels
   source_ver <- image_df %>%
@@ -134,8 +134,8 @@ calc_node_values <- function(image_df, limits_object, limits_background){
   neighborhood_dt[, `:=`(ngb_column = column + mod_col, ngb_row = row + mod_row)]
 
   # find neighbor pixel value
-  total_smoothness <- 5
-  similarity_smoothness <- 50
+  total_smoothness <- 2 # 5 is recommended
+  similarity_smoothness <- 50/10 # 50 is recommended
   contrast <- MASS::fitdistr(image_df$node_value, "normal")$estimate[['sd']]^2
 
   neighborhood_ver <-
@@ -146,8 +146,7 @@ calc_node_values <- function(image_df, limits_object, limits_background){
       by.y = c('column', 'row'),
       all.x = TRUE
     )[!is.na(node_id.y),][
-      , capacity := (total_smoothness + similarity_smoothness*exp(-(node_value.x - node_value.y)^2)*contrast)/1000
-      # , capacity := (1 - abs(node_value.x - node_value.y))*neigh_coef
+      , capacity := (total_smoothness + similarity_smoothness*exp(-(node_value.x - node_value.y)^2)*contrast)
       ] [
         ,c("node_id.x", "node_id.y", "capacity")]
 

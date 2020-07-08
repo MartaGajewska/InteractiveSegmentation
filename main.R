@@ -13,8 +13,8 @@ source("app.R")
 # GRAPH CUT
 
 # Prepare image
-image <- get_image("image_examples/sun.jpg")
-# image <- get_image("image_examples/bird.jpg")
+image <- get_image("image_examples/hand.JPG")
+# image <- get_image("image_examples/Horse.jpg")
 
 image_df <- conv_image_to_df(image)
 
@@ -23,8 +23,8 @@ image_df <- conv_image_to_df(image)
 shinyApp(ui, server)
 
 # Create a graph with vertices and their capacities
-limits_object <- readRDS(paste0("./app_data", list.files("./app_data",pattern="object")))
-limits_background <- readRDS(paste0("./app_data", list.files("./app_data",pattern="background")))
+limits_object <- readRDS(paste0("./app_data/", list.files("./app_data/",pattern="object")))
+limits_background <- readRDS(paste0("./app_data/", list.files("./app_data/",pattern="background")))
 image_with_node_values <- calc_node_values(image_df, limits_object, limits_background)
 image_graph <- conv_image_to_graph(image_with_node_values)
 
