@@ -8,7 +8,7 @@ get_image <- function(image_path) {
            min(80, height(image)))
 
   # Convert to grayscale and perform histogram normalization
-  image <- grayscale(image)
+  # image <- grayscale(image)
   # noise <- 0.2*imnoise(dim=dim(image)) %>% isoblur(2)
   # image <- image + noise
 
@@ -19,17 +19,24 @@ get_image <- function(image_path) {
 
 conv_image_to_df <- function(image){
   # convert to graph
-  image_df <- image %>%
+  image_df <-
+    image %>%
     as.data.frame() %>%
+    tidyr::pivot_wider(names_from = cc, names_prefix = "node_value_cc_") %>%
+    mutate(rgb_value = rgb(red = node_value_cc_1, green = node_value_cc_2, blue = node_value_cc_3)) %>%
     rename(column = x,
-           row = y,
-           node_value = value
+           row = y
     ) %>%
     # Node 1 = source, node 2 = sink
     mutate(node_id = 2+row_number())
 
   # wide histogram
-  image_df$node_value <- (image_df$node_value - min(image_df$node_value))/(max(image_df$node_value)-min(image_df$node_value))
+  # image_df$node_value <- (image_df$node_value - min(image_df$node_value))/(max(image_df$node_value)-min(image_df$node_value))
+  # image_df %>%
+  #   group_by(cc) %>%
+  #   mutate(node_value  =
+  #            (node_value - min(node_value))/(max(node_value)-min(node_value))) %>%
+  #   glimpse
 
   return(image_df)
 }
@@ -39,45 +46,49 @@ calc_params <- function(image_df, limits){
   selected_pixels <- image_df %>%
     filter(between(column, limits$xmin, limits$xmax) &
              between(row, limits$ymin, limits$ymax)) %>%
-    pull(node_value)
+    select(node_value_cc_1, node_value_cc_2, node_value_cc_3)
 
-  fit <- MASS::fitdistr(selected_pixels, "normal")
+  means <- sapply(selected_pixels, MASS::fitdiststr, densfun = "normal")['estimate',] %>%
+    as.data.frame() %>%
+    t() %>%
+    .[,1]
 
-  if(fit$estimate[['sd']]==0) {fit$estimate[['sd']] <- 0.01}
+  var <- var(selected_pixels)
 
-  return(as.list(fit$estimate))
+  return(list(means = means, var = var))
 }
 
 plot_selections <- function(image_df, limits_object, limits_background){
 
   ggplot(image_df, aes(column, row)) +
-    geom_point(aes(color=node_value)) +
-    scale_color_gradient(low="black", high="white") +
-    scale_y_reverse(limits = c(max(image_df$row), min(image_df$row))) +
-    lims(x = c(min(image_df$column), max(image_df$column))) +
+    geom_raster(aes(fill=rgb_value))  +
+    scale_y_reverse() +
+    scale_fill_identity() +
     theme(legend.position="none") +
-      geom_rect(aes(xmin = limits_object$xmin, xmax = limits_object$xmax,
-                    ymin = limits_object$ymin, ymax = limits_object$ymax),
-                fill = "transparent", color = "red", size = 1) +
-      geom_text(
-        aes(x = limits_object$xmin, y = limits_object$ymax, label = "object"),
-        size = 3, vjust = -0.3, hjust = -0.1, color = "red"
-      ) +
-      geom_rect(aes(xmin = limits_background$xmin, xmax = limits_background$xmax,
-                    ymin = limits_background$ymin, ymax = limits_background$ymax),
-                fill = "transparent", color = "blue", size = 1) +
-      geom_text(
-        aes(x = limits_background$xmin, y = limits_background$ymax, label = "background"),
-        size = 3, vjust = -0.3, hjust = -0.1, color = "blue"
-      ) +
-      coord_fixed(ratio=1)
+    # lims(x = c(min(image_df$column), max(image_df$column))) +
+    theme(legend.position="none") +
+    geom_rect(aes(xmin = limits_object$xmin, xmax = limits_object$xmax,
+                  ymin = limits_object$ymin, ymax = limits_object$ymax),
+              fill = "transparent", color = "red", size = 1) +
+    geom_text(
+      aes(x = limits_object$xmin, y = limits_object$ymax, label = "object"),
+      size = 3, vjust = -0.3, hjust = -0.1, color = "red"
+    ) +
+    geom_rect(aes(xmin = limits_background$xmin, xmax = limits_background$xmax,
+                  ymin = limits_background$ymin, ymax = limits_background$ymax),
+              fill = "transparent", color = "blue", size = 1) +
+    geom_text(
+      aes(x = limits_background$xmin, y = limits_background$ymax, label = "background"),
+      size = 3, vjust = -0.3, hjust = -0.1, color = "blue"
+    ) +
+    coord_fixed(ratio=1)
 
 }
 
 
 calc_node_values <- function(image_df, limits_object, limits_background){
 
-  neigh_coef <- 1
+  neigh_coef <- 0
   # Define graph vertices and capacities
 
   object_params <- calc_params(image_df, limits_object)
@@ -86,9 +97,29 @@ calc_node_values <- function(image_df, limits_object, limits_background){
   # Display image with selected areas
   plot_selections(image_df, limits_object, limits_background) %>% plot
 
+  # Calculate probabilities
+  if(sum(object_params$var!=object_params$var[1,1])==0){
+    # All color channels are identical
+    image_df <- image_df %>%
+      mutate(dnorm_object = dnorm(node_value_cc_1,
+                                  mean = object_params$means[1],
+                                  sd = object_params$var[1,1]),
+             dnorm_background = dnorm(node_value_cc_1,
+                                  mean = background_params$means[1],
+                                  sd = background_params$var[1,1]))
+  } else {
+    # Different color channels
+    image_df <- image_df %>%
+      mutate(dnorm_object = mvtnorm::dmvnorm(image_df %>% select(starts_with("node_value_")),
+                                                 mean  = object_params$means,
+                                                 sigma = object_params$corr),
+             dnorm_background = mvtnorm::dmvnorm(image_df %>% select(starts_with("node_value_")),
+                                                 mean  = background_params$means,
+                                                 sigma = background_params$corr))
+  }
+
+
   image_df <- image_df %>%
-    mutate(dnorm_object = dnorm(node_value, object_params[['mean']], object_params[['sd']]),
-           dnorm_background = dnorm(node_value, background_params[['mean']], background_params[['sd']])) %>%
     mutate(is_background =
              between(column, limits_background$xmin, limits_background$xmax) &
              between(row, limits_background$ymin, limits_background$ymax)) %>%
@@ -136,7 +167,8 @@ calc_node_values <- function(image_df, limits_object, limits_background){
   # find neighbor pixel value
   total_smoothness <- 2 # 5 is recommended
   similarity_smoothness <- 50/10 # 50 is recommended
-  contrast <- MASS::fitdistr(image_df$node_value, "normal")$estimate[['sd']]^2
+  contrast <- 3
+    # MASS::fitdistr(image_df$node_value, "normal")$estimate[['sd']]^2
 
   neighborhood_ver <-
     merge(
@@ -146,7 +178,11 @@ calc_node_values <- function(image_df, limits_object, limits_background){
       by.y = c('column', 'row'),
       all.x = TRUE
     )[!is.na(node_id.y),][
-      , capacity := (total_smoothness + similarity_smoothness*exp(-(node_value.x - node_value.y)^2)*contrast)
+      , capacity := (total_smoothness + similarity_smoothness*exp(-(
+        (node_value_cc_1.x - node_value_cc_1.y)^2 +
+        (node_value_cc_2.x - node_value_cc_2.y)^2 +
+        (node_value_cc_3.x - node_value_cc_3.y)^2
+        ))*contrast)*neigh_coef
       ] [
         ,c("node_id.x", "node_id.y", "capacity")]
 
@@ -169,24 +205,23 @@ conv_image_to_graph <- function(image_with_node_values){
 
 
 display_results <- function(image_df, partitioning){
+
   origin <-
     ggplot(image_df, aes(column, row)) +
-    geom_point(aes(color=node_value)) +
-    scale_color_gradient(low="black", high="white") +
-    scale_y_reverse(limits = c(max(image_df$row), min(image_df$row))) +
+    geom_raster(aes(fill=rgb_value))  +
+    scale_y_reverse() +
+    scale_fill_identity() +
     lims(x = c(min(image_df$column), max(image_df$column))) +
     theme(legend.position="none")
 
   output <-
-    ggplot() +
-    geom_point(data = image_df, aes(column, row, color=node_value)) +
+    ggplot(image_df, aes(column, row)) +
+    geom_raster(aes(fill=rgb_value))  +
     geom_point(data = image_df %>% filter(node_id %in% partitioning$partition2),
                aes(column, row), color = "red", alpha = 0.2) +
-    scale_color_gradient(low="black", high="white") +
-    scale_y_reverse(limits = c(max(image_df$row), min(image_df$row))) +
-    lims(x = c(min(image_df$column), max(image_df$column))) +
+    scale_y_reverse() +
+    scale_fill_identity() +
     theme(legend.position="none")
-
 
   return(origin|output)
 }

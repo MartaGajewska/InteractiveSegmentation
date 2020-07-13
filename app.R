@@ -35,9 +35,9 @@ ui <- fluidPage(
 server <- function(input, output, session) {
   output$plot1 <- renderPlot({
     ggplot(image_df, aes(column, row)) +
-      geom_point(aes(color=node_value)) +
-      scale_color_gradient(low="black", high="white") +
-      scale_y_reverse(limits = c(max(image_df$row), min(image_df$row))) +
+      geom_raster(aes(fill=rgb_value))  +
+      scale_y_reverse() +
+      scale_fill_identity() +
       theme(legend.position="none")
   })
 
