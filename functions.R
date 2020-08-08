@@ -4,8 +4,8 @@ get_image <- function(image_path) {
   image <- load.image(image_path)
 
   image <- image %>%
-    resize(min(80, width(image)),
-           min(80, height(image)))
+    resize(min(120, width(image)),
+           min(120, height(image)))
 
   # Convert to grayscale and perform histogram normalization
   # image <- grayscale(image)
@@ -48,10 +48,7 @@ calc_params <- function(image_df, limits){
              between(row, limits$ymin, limits$ymax)) %>%
     select(node_value_cc_1, node_value_cc_2, node_value_cc_3)
 
-  means <- sapply(selected_pixels, MASS::fitdiststr, densfun = "normal")['estimate',] %>%
-    as.data.frame() %>%
-    t() %>%
-    .[,1]
+  means <- colMeans(selected_pixels)
 
   var <- var(selected_pixels)
 
@@ -88,7 +85,7 @@ plot_selections <- function(image_df, limits_object, limits_background){
 
 calc_node_values <- function(image_df, limits_object, limits_background){
 
-  neigh_coef <- 0
+  neigh_coef <- 1
   # Define graph vertices and capacities
 
   object_params <- calc_params(image_df, limits_object)
@@ -112,10 +109,10 @@ calc_node_values <- function(image_df, limits_object, limits_background){
     image_df <- image_df %>%
       mutate(dnorm_object = mvtnorm::dmvnorm(image_df %>% select(starts_with("node_value_")),
                                                  mean  = object_params$means,
-                                                 sigma = object_params$corr),
+                                                 sigma = object_params$var),
              dnorm_background = mvtnorm::dmvnorm(image_df %>% select(starts_with("node_value_")),
                                                  mean  = background_params$means,
-                                                 sigma = background_params$corr))
+                                                 sigma = background_params$var))
   }
 
 
