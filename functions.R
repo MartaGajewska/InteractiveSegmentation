@@ -205,7 +205,7 @@ display_results <- function(image_df, partitioning){
 
   origin <-
     ggplot(image_df, aes(column, row)) +
-    geom_raster(aes(fill=rgb_value))  +
+    geom_raster(aes(fill=rgb_value), hjust = -0.5)  +
     scale_y_reverse() +
     scale_fill_identity() +
     lims(x = c(min(image_df$column), max(image_df$column))) +
@@ -213,7 +213,7 @@ display_results <- function(image_df, partitioning){
 
   output <-
     ggplot(image_df, aes(column, row)) +
-    geom_raster(aes(fill=rgb_value))  +
+    geom_raster(aes(fill=rgb_value), , hjust = -0.5)  +
     geom_point(data = image_df %>% filter(node_id %in% partitioning$partition2),
                aes(column, row), color = "red", alpha = 0.2) +
     scale_y_reverse() +
