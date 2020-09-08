@@ -12,9 +12,10 @@ source("functions.R")
 source("app.R")
 # GRAPH CUT
 
-# Prepare image
-image <- get_image("image_examples/hand.JPG")
-# image <- get_image("image_examples/Horse.jpg")
+# Prepare the image
+# image <- get_image("image_examples/Filip.jpg")
+image <- get_image("image_examples/chessboard.jpg")
+# image <- get_image("image_examples/Pileczka.JPG")
 
 image_df <- conv_image_to_df(image)
 
@@ -28,7 +29,7 @@ limits_background <- readRDS(paste0("./app_data/", list.files("./app_data/",patt
 image_with_node_values <- calc_node_values(image_df, limits_object, limits_background)
 image_graph <- conv_image_to_graph(image_with_node_values)
 
-
+# Create image partitioning using max flow algorithm
 partitioning <-
   igraph::max_flow(
     image_graph,

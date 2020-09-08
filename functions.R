@@ -18,10 +18,19 @@ get_image <- function(image_path) {
 }
 
 conv_image_to_df <- function(image){
+
   # convert to graph
   image_df <-
     image %>%
-    as.data.frame() %>%
+    as.data.frame()
+
+  if (!("cc" %in% colnames(image_df))) {
+    image_df <- image_df %>%
+      merge(data.frame(cc = c(1, 2, 3)))
+  }
+
+  image_df <-
+    image_df %>%
     tidyr::pivot_wider(names_from = cc, names_prefix = "node_value_cc_") %>%
     mutate(rgb_value = rgb(red = node_value_cc_1, green = node_value_cc_2, blue = node_value_cc_3)) %>%
     rename(column = x,
@@ -83,16 +92,66 @@ plot_selections <- function(image_df, limits_object, limits_background){
 }
 
 
+
+calc_cap_neighborhood_ver <- function(image_df) {
+  # Create a df with neighbouring (4) pixels
+  # Each pair is in the subset twice (x -> y & y -> x)
+
+  image_dt <- data.table(image_df)
+
+  neighborhood_dt <- data.table::rbindlist(list(
+    copy(image_dt)[,`:=`(mod_col= 1, mod_row = 0)],
+    copy(image_dt)[,`:=`(mod_col = -1, mod_row = 0)],
+    copy(image_dt)[,`:=`(mod_col = 0, mod_row = 1)],
+    copy(image_dt)[,`:=`(mod_col = 0, mod_row = -1)]
+  )
+  )
+
+  # calculate neighbor coordinates
+  neighborhood_dt[, `:=`(ngb_column = column + mod_col, ngb_row = row + mod_row)]
+
+  # find neighbor pixel value
+  total_smoothness <- 2 # 5 is recommended
+  similarity_smoothness <- 50/10 # 50 is recommended
+  contrast <- 3
+  # MASS::fitdistr(image_df$node_value, "normal")$estimate[['sd']]^2
+
+  neighborhood_ver <-
+    merge(
+      neighborhood_dt,
+      copy(image_dt),
+      by.x = c('ngb_column', 'ngb_row'),
+      by.y = c('column', 'row'),
+      all.x = TRUE
+    )[!is.na(node_id.y),][
+      , capacity := (total_smoothness + similarity_smoothness*exp(-(
+        (node_value_cc_1.x - node_value_cc_1.y)^2 +
+          (node_value_cc_2.x - node_value_cc_2.y)^2 +
+          (node_value_cc_3.x - node_value_cc_3.y)^2
+      ))*contrast)*neigh_coef
+      ] [
+        ,c("node_id.x", "node_id.y", "capacity")]
+
+  setnames(neighborhood_ver,
+           colnames(neighborhood_ver),
+           c("from", "to", "capacity"))
+
+  return(neighborhood_ver)
+}
+
+
 calc_node_values <- function(image_df, limits_object, limits_background){
 
-  neigh_coef <- 1
-  # Define graph vertices and capacities
-
-  object_params <- calc_params(image_df, limits_object)
-  background_params <- calc_params(image_df, limits_background)
+  neigh_coef <- 0
 
   # Display image with selected areas
   plot_selections(image_df, limits_object, limits_background) %>% plot
+
+  # Get parameters from selections
+  object_params <- calc_params(image_df, limits_object)
+  background_params <- calc_params(image_df, limits_background)
+
+  # Define graph vertices and capacities
 
   # Calculate probabilities
   if(sum(object_params$var!=object_params$var[1,1])==0){
@@ -146,46 +205,7 @@ calc_node_values <- function(image_df, limits_object, limits_background){
 
   ## Pixels - pixels (smoothness term)
 
-  # Create a df with neighbouring (4) pixels
-  # Each pair is in the subset twice (x -> y & y -> x)
-  image_dt <- data.table(image_df)
-
-  neighborhood_dt <- data.table::rbindlist(list(
-    copy(image_dt)[,`:=`(mod_col= 1, mod_row = 0)],
-    copy(image_dt)[,`:=`(mod_col = -1, mod_row = 0)],
-    copy(image_dt)[,`:=`(mod_col = 0, mod_row = 1)],
-    copy(image_dt)[,`:=`(mod_col = 0, mod_row = -1)]
-  )
-  )
-
-  # calculate neighbor coordinates
-  neighborhood_dt[, `:=`(ngb_column = column + mod_col, ngb_row = row + mod_row)]
-
-  # find neighbor pixel value
-  total_smoothness <- 2 # 5 is recommended
-  similarity_smoothness <- 50/10 # 50 is recommended
-  contrast <- 3
-    # MASS::fitdistr(image_df$node_value, "normal")$estimate[['sd']]^2
-
-  neighborhood_ver <-
-    merge(
-      neighborhood_dt,
-      copy(image_dt),
-      by.x = c('ngb_column', 'ngb_row'),
-      by.y = c('column', 'row'),
-      all.x = TRUE
-    )[!is.na(node_id.y),][
-      , capacity := (total_smoothness + similarity_smoothness*exp(-(
-        (node_value_cc_1.x - node_value_cc_1.y)^2 +
-        (node_value_cc_2.x - node_value_cc_2.y)^2 +
-        (node_value_cc_3.x - node_value_cc_3.y)^2
-        ))*contrast)*neigh_coef
-      ] [
-        ,c("node_id.x", "node_id.y", "capacity")]
-
-  setnames(neighborhood_ver,
-           colnames(neighborhood_ver),
-           c("from", "to", "capacity"))
+  neighborhood_ver <- calc_cap_neighborhood_ver(image_df)
 
   # Combine source, sink and neighbouring vertices into a graph
   image_with_node_values <- rbindlist(list(source_ver, sink_ver, neighborhood_ver))
@@ -201,20 +221,25 @@ conv_image_to_graph <- function(image_with_node_values){
 }
 
 
-display_results <- function(image_df, partitioning){
+display_results <- function(image_df, partitioning) {
 
   origin <-
     ggplot(image_df, aes(column, row)) +
-    geom_raster(aes(fill=rgb_value), hjust = -0.5)  +
+    geom_raster(aes(fill=rgb_value), hjust = 0.5)  +
     scale_y_reverse() +
     scale_fill_identity() +
     lims(x = c(min(image_df$column), max(image_df$column))) +
     theme(legend.position="none")
 
+  # TODO: Figure out why we need a shift here
   output <-
-    ggplot(image_df, aes(column, row)) +
-    geom_raster(aes(fill=rgb_value), , hjust = -0.5)  +
-    geom_point(data = image_df %>% filter(node_id %in% partitioning$partition2),
+    ggplot() +
+    geom_raster(data = image_df %>%
+                  filter(column != 1 ),
+                aes(column-1, row, fill=rgb_value), hjust = 0.5)  +
+    geom_point(data = image_df %>%
+                 filter(node_id %in% partitioning$partition2) %>%
+                 filter(column != max(image_df$column)),
                aes(column, row), color = "red", alpha = 0.2) +
     scale_y_reverse() +
     scale_fill_identity() +
