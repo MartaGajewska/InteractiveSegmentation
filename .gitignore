@@ -43,3 +43,6 @@ vignettes/*.pdf
 documents/
 image_examples/
 app_data/
+*.png
+*.jpg
+*.bmp

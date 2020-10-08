@@ -4,8 +4,8 @@ get_image <- function(image_path) {
   image <- load.image(image_path)
 
   image <- image %>%
-    resize(min(120, width(image)),
-           min(120, height(image)))
+    resize(min(50, width(image)),
+           min(50, height(image)))
 
   # Convert to grayscale and perform histogram normalization
   # image <- grayscale(image)
@@ -93,7 +93,7 @@ plot_selections <- function(image_df, limits_object, limits_background){
 
 
 
-calc_cap_neighborhood_ver <- function(image_df) {
+calc_cap_neighborhood_ver <- function(image_df, neigh_coef) {
   # Create a df with neighbouring (4) pixels
   # Each pair is in the subset twice (x -> y & y -> x)
 
@@ -142,7 +142,7 @@ calc_cap_neighborhood_ver <- function(image_df) {
 
 calc_node_values <- function(image_df, limits_object, limits_background){
 
-  neigh_coef <- 0
+  neigh_coef <- 2
 
   # Display image with selected areas
   plot_selections(image_df, limits_object, limits_background) %>% plot
@@ -205,7 +205,7 @@ calc_node_values <- function(image_df, limits_object, limits_background){
 
   ## Pixels - pixels (smoothness term)
 
-  neighborhood_ver <- calc_cap_neighborhood_ver(image_df)
+  neighborhood_ver <- calc_cap_neighborhood_ver(image_df, neigh_coef)
 
   # Combine source, sink and neighbouring vertices into a graph
   image_with_node_values <- rbindlist(list(source_ver, sink_ver, neighborhood_ver))
