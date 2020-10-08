@@ -8,7 +8,8 @@ calc_params_test <- function(image_df, limits){
              between(row, limits$ymin, limits$ymax)) %>%
     select(node_value_cc_1, node_value_cc_2, node_value_cc_3)
 
-  mixmdl <- mixtools::mvnormalmixEM(selected_pixels %>% as.data.frame())
+  mixmdl <- mixtools::mvnormalmixEM(selected_pixels %>% as.data.frame(),
+                                    k = 3)
 
   return(list(means = mixmdl$mu, vars = mixmdl$sigma, lambdas = mixmdl$lambda))
 }
@@ -43,19 +44,17 @@ calc_node_values_alternative <- function(image_df, limits_object, limits_backgro
   # browser()
     image_df <- image_df %>%
       mutate(dnorm_object =
-               sum(unlist(lapply(1:length(object_params$lambdas),
-                          function(i) object_params$lambda[i] * mvtnorm::dmvnorm(
-                            image_df %>% select(starts_with("node_value_")),
-                            mean = object_params$means[[i]],
-                            sigma = object_params$vars[[i]])))),
+               purrr::map_dfc(1:length(object_params$lambdas),
+                              function(i) object_params$lambda[i] * mvtnorm::dmvnorm(
+                                image_df %>% select(starts_with("node_value_")),
+                                mean = object_params$means[[i]],
+                                sigma = object_params$vars[[i]])) %>% rowSums(),
              dnorm_background =
-               sum(unlist(lapply(1:length(background_params$lambdas),
+               purrr::map_dfc(1:length(background_params$lambdas),
                           function(i) background_params$lambda[i] * mvtnorm::dmvnorm(
                             image_df %>% select(starts_with("node_value_")),
                             mean = background_params$means[[i]],
-                            sigma = background_params$vars[[i]])))))
-  # }
-
+                            sigma = background_params$vars[[i]])) %>% rowSums())
 
   image_df <- image_df %>%
     mutate(is_background =
