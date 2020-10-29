@@ -16,7 +16,7 @@ read_in_test_image <- function(path, image){
 
 read_in_test_base_image <- function(path, image){
   path = "./testing_dataset/images/"
-  get_image(paste0(path, image, ".jpg")) %>% conv_image_to_df
+  get_image(paste0(path, image, ".bmp")) %>% conv_image_to_df
 }
 
 read_in_test_brush_strokes <- function(path, image){
@@ -91,10 +91,12 @@ get_image <- function(image_path) {
   # Max 50 x 100 pixels
   # 100 x 200 was slow (few minutes)
   image <- load.image(image_path)
+  # setting 80 to be the max size, keeping the aspect ratio
+  dim <- image %>% dim %>% .[1:2]
+  new_dim <- round(80*dim/max(dim))
 
   image <- image %>%
-    resize(min(50, width(image)),
-           min(50, height(image)))
+    resize(new_dim[1], new_dim[2])
 
   # Convert to grayscale and perform histogram normalization
   # image <- grayscale(image)

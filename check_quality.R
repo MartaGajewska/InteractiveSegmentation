@@ -1,11 +1,30 @@
 check_quality <- function(segmentation_results_regular,
                           segmentation_results_mixed,
                           test_image) {
-  quality_regular <- calc_quality_metrics(segmentation_results_regular,
-                                          test_image)
-  quality_mixed <- calc_quality_metrics(segmentation_results_mixed,
-                                        test_image)
+  quality_regular <-
+    calc_quality_metrics(segmentation_results_regular,
+                         test_image)
 
+  if (length(segmentation_results_mixed)==1) {
+    quality_metrics <- data.frame(
+      metric = names(quality_regular),
+      quality_regular,
+      quality_mixed = NA,
+      image = image,
+      row.names = NULL
+    )
+  } else {
+    quality_mixed <- calc_quality_metrics(segmentation_results_mixed,
+                                          test_image)
+
+    quality_metrics <- data.frame(
+      metric = names(quality_regular),
+      quality_regular,
+      quality_mixed,
+      image = image,
+      row.names = NULL
+    )
+  }
   # Generate report
   # Individual level:
   # 3 input pictures, 2 output pictures, a table with metrics
@@ -15,6 +34,8 @@ check_quality <- function(segmentation_results_regular,
   # save quality_regular, quality_mixed, append = TRUE
 
   # TODO: add error handling before - singular matrix - NAs, etc
+  data.table::fwrite(quality_metrics, file = "quality_results/metrics.csv", append = TRUE)
+
 }
 
 calc_quality_metrics <- function(segmentation_results,
@@ -24,7 +45,7 @@ calc_quality_metrics <- function(segmentation_results,
   # accuracy inside and outside boarder area
   test_image <- test_image %>%
     mutate(marked_as_object =
-             ifelse(node_id %in% segmentation_results_mixed$partition1, TRUE, FALSE))
+             ifelse(node_id %in% segmentation_results$partition1, TRUE, FALSE))
 
   conf_mat <- caret::confusionMatrix(data = as.factor(test_image$marked_as_object),
                          reference = as.factor(test_image$is_object_truth))

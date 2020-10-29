@@ -91,8 +91,6 @@ plot_selections <- function(image_df, limits_object, limits_background){
 
 }
 
-
-
 calc_cap_neighborhood_ver <- function(image_df, neigh_coef) {
   # Create a df with neighbouring (4) pixels
   # Each pair is in the subset twice (x -> y & y -> x)
@@ -138,7 +136,6 @@ calc_cap_neighborhood_ver <- function(image_df, neigh_coef) {
 
   return(neighborhood_ver)
 }
-
 
 calc_node_values <- function(image_df, limits_object, limits_background){
 
@@ -219,7 +216,6 @@ conv_image_to_graph <- function(image_with_node_values){
 
   return(image_graph)
 }
-
 
 display_results <- function(image_df, partitioning) {
 
