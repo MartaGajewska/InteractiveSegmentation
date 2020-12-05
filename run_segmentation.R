@@ -1,6 +1,6 @@
 run_segmentation <- function(test_image, mode){
   # Display image with selected areas
-  plot_selections(test_image) %>% plot
+  selection_plot <- plot_selections(test_image)
 
   image_with_node_values <- calc_node_values(test_image, mode)
   image_graph <- conv_image_to_graph(image_with_node_values)
@@ -13,7 +13,23 @@ run_segmentation <- function(test_image, mode){
       target = igraph::V(image_graph)["2"]
     )
 
-  return(partitioning)
+  results_plot <-
+    ggplot() +
+    geom_raster(data = test_image %>%
+                  filter(column != 1 ),
+                aes(column-1, row, fill=rgb_value), hjust = 0.5)  +
+    geom_point(data = test_image %>%
+                 filter(node_id %in% partitioning$partition2) %>%
+                 filter(column != max(test_image$column)),
+               aes(column, row), color = "red", alpha = 0.4, size = 2) +
+    scale_y_reverse() +
+    scale_fill_identity() +
+    theme(legend.position="none") +
+    theme_void()+
+    labs(title = paste0("Resulting segmentation, mode: ", mode))
+
+
+  return(list(partitioning = partitioning, plots = list(selection = selection_plot, results = results_plot)))
 }
 
 plot_selections <- function(test_image){
@@ -43,7 +59,9 @@ plot_selections <- function(test_image){
       size = 3, vjust = -0.3, hjust = -0.1, color = "red"
     ) +
     coord_fixed(ratio=1) +
-    theme_void()
+    theme_void() +
+    labs(title = "Information provided by the user")
+
 }
 
 calculate_capacites <- function(test_image, object_params, background_params, mode){
@@ -90,7 +108,7 @@ calculate_capacites <- function(test_image, object_params, background_params, mo
 
 calc_node_values <- function(test_image, mode){
 
-  neigh_coef <- 5
+  neigh_coef <- 10
 
   # Get parameters from selections
   object_params <- calc_params(test_image, "object", mode)
@@ -106,7 +124,7 @@ calc_node_values <- function(test_image, mode){
     rename(`to` = `node_id`) %>%
     # mutate(capacity = -log(dnorm_object)) %>%
     mutate(capacity = dnorm_object) %>%
-    # add some extra to the selected pixels to keep user constrain
+    # change capacity for selected pixels to a high constant to keep user constrain
     mutate(capacity = ifelse(is.na(bs_neighborhood_tagging) | bs_neighborhood_tagging != "object", capacity, 1000000000000)) %>%
     mutate(from = 1) %>%
     select(from, to, capacity)
@@ -116,8 +134,8 @@ calc_node_values <- function(test_image, mode){
     rename(from=node_id) %>%
     # mutate(capacity = -log(dnorm_background)) %>%
     mutate(capacity = dnorm_background) %>%
-    # add some extra to the selected pixels to keep user constrain
-    mutate(capacity = ifelse(is.na(bs_neighborhood_tagging) | bs_neighborhood_tagging != "backgroud", capacity, 1000000000000)) %>%
+    # change capacity for selected pixels to a high constant to keep user constrain
+    mutate(capacity = ifelse(is.na(bs_neighborhood_tagging) | bs_neighborhood_tagging != "background", capacity, 1000000000000)) %>%
     mutate(to = 2) %>%
     select(from, to, capacity)
 
@@ -224,7 +242,7 @@ display_results <- function(image_df, partitioning) {
     geom_point(data = image_df %>%
                  filter(node_id %in% partitioning$partition2) %>%
                  filter(column != max(image_df$column)),
-               aes(column, row), color = "red", alpha = 0.2) +
+               aes(column, row), color = "red", alpha = 0.4) +
     scale_y_reverse() +
     scale_fill_identity() +
     theme(legend.position="none")

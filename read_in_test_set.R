@@ -1,5 +1,5 @@
-read_in_test_image <- function(path, image){
-  test_base_image <- read_in_test_base_image(paste0(path, "images/"), image)
+read_in_test_image <- function(path, image, image_format){
+  test_base_image <- read_in_test_base_image(paste0(path, "images/"), image, image_format)
   test_brush_strokes <- read_in_test_brush_strokes(paste0(path, "brush_strokes/"), image)
   test_ground_truth <- read_in_test_ground_truth(paste0(path, "ground_truth/"), image)
 
@@ -14,9 +14,9 @@ read_in_test_image <- function(path, image){
   return(test_image)
 }
 
-read_in_test_base_image <- function(path, image){
+read_in_test_base_image <- function(path, image, image_format){
   path = "./testing_dataset/images/"
-  get_image(paste0(path, image, ".bmp")) %>% conv_image_to_df
+  get_image(paste0(path, image, ".", image_format)) %>% conv_image_to_df
 }
 
 read_in_test_brush_strokes <- function(path, image){
@@ -91,9 +91,9 @@ get_image <- function(image_path) {
   # Max 50 x 100 pixels
   # 100 x 200 was slow (few minutes)
   image <- load.image(image_path)
-  # setting 80 to be the max size, keeping the aspect ratio
+  # setting 120 to be the max size, keeping the aspect ratio
   dim <- image %>% dim %>% .[1:2]
-  new_dim <- round(80*dim/max(dim))
+  new_dim <- round(120*dim/max(dim))
 
   image <- image %>%
     resize(new_dim[1], new_dim[2])

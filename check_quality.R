@@ -36,6 +36,20 @@ check_quality <- function(segmentation_results_regular,
   # TODO: add error handling before - singular matrix - NAs, etc
   data.table::fwrite(quality_metrics, file = "quality_results/metrics.csv", append = TRUE)
 
+  # Start here: improve this plot
+  quality_plot <-
+    ggplot(quality_metrics  %>%
+           tidyr::pivot_longer(cols = c(quality_regular, quality_mixed), names_to = "method", names_prefix = "quality_"),
+           aes(value, metric, color = method)) +
+    # facet_wrap(metric~.) +
+    # geom_violin(aes(fill = method), alpha  = 0.5) +
+    geom_point(size = 3) +
+    theme(legend.position = "none") +
+    labs(title = "Quality of segmentation by mode", x = "", y = "") +
+    theme_minimal()
+
+  return(quality_plot)
+
 }
 
 calc_quality_metrics <- function(segmentation_results,
